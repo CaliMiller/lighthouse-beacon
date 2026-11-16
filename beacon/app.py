@@ -233,6 +233,10 @@ def put_settings(data: dict = Body(...)):
             clean["youtube_client_config"] = json.dumps(youtube.parse_client_config(clean["youtube_client_config"]))
         except ValueError as e:
             raise HTTPException(400, str(e))
+    model = (clean.get("llm_model") or "").strip()
+    if model:
+        saved = [m for m in db.get_setting("llm_saved_models").splitlines() if m.strip() and m != model]
+        clean["llm_saved_models"] = "\n".join([model] + saved[:19])
     if "fetch_time" in clean:
         hh, mm = clean["fetch_time"].split(":")
         assert 0 <= int(hh) < 24 and 0 <= int(mm) < 60
@@ -249,6 +253,27 @@ async def upload_font(file: UploadFile = File(...)):
         f.write(await file.read())
     db.set_settings({"font_path": path})
     return {"font_path": path}
+
+
+@app.post("/api/models")
+def models(data: dict = Body(default={})):
+    """List models using the form's current (possibly unsaved) provider settings."""
+    s = db.get_settings()
+    for k in ("llm_provider", "llm_base_url", "llm_api_key"):
+        if k in data and not (k in SECRET_KEYS and data[k] == MASK):
+            s[k] = data[k]
+    saved = [m for m in s.get("llm_saved_models", "").splitlines() if m.strip()]
+    try:
+        return {"installed": writer.list_models(s), "saved": saved, "error": ""}
+    except Exception as e:
+        return {"installed": [], "saved": saved, "error": f"Couldn't list models: {e}"}
+
+
+@app.delete("/api/models/saved")
+def forget_model(name: str):
+    saved = [m for m in db.get_setting("llm_saved_models").splitlines() if m.strip() and m != name]
+    db.set_settings({"llm_saved_models": "\n".join(saved)})
+    return {"saved": saved}
 
 
 @app.post("/api/test/llm")

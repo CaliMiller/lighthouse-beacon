@@ -341,3 +341,20 @@ def save_raw(raw):
             f.write(raw or "")
     except OSError:
         pass
+
+
+def list_models(s):
+    """Model names the configured server offers (Ollama/OpenAI-compatible or Anthropic)."""
+    if s["llm_provider"] == "openai":
+        base = (s.get("llm_base_url") or "https://api.openai.com/v1").rstrip("/")
+        headers = {"authorization": f"Bearer {s['llm_api_key']}"} if s.get("llm_api_key") else {}
+        r = httpx.get(base + "/models", headers=headers, timeout=15)
+    else:
+        if not s.get("llm_api_key"):
+            raise RuntimeError("Enter your Anthropic API key to list Claude models")
+        r = httpx.get((s.get("llm_base_url") or "https://api.anthropic.com").rstrip("/") + "/v1/models",
+                      headers={"x-api-key": s["llm_api_key"], "anthropic-version": "2023-06-01"},
+                      params={"limit": 100}, timeout=15)
+    if r.status_code >= 400:
+        raise RuntimeError(f"{r.status_code}: {r.text[:200]}")
+    return sorted({m["id"] for m in r.json().get("data", []) if m.get("id")})

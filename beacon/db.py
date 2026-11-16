@@ -37,6 +37,7 @@ DEFAULT_SETTINGS = {
     "llm_model": "claude-sonnet-5-5",
     "llm_base_url": "",                   # only for openai-compatible (Ollama, LM Studio, OpenAI)
     "llm_web_search": "1",                # anthropic only: let the model search the web too
+    "llm_saved_models": "",               # newline list of model names used before (for the dropdown)
     "feeds": DEFAULT_FEEDS,
     "focus_topics": DEFAULT_FOCUS,
     "issues_per_day": "8",

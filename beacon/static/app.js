@@ -203,7 +203,12 @@ async function loadSettings() {
   $("#main").innerHTML = `<form class="settings" id="sform">
     <section><h2>AI writer</h2><div class="grid">
       ${F("llm_provider", "Provider", "select:anthropic|openai")}
-      ${F("llm_model", "Model")}
+      <div><label>Model</label>
+        <div style="display:flex;gap:6px"><select id="modelSelect"><option>Loading…</option></select>
+          <button type="button" id="modelRefresh" title="Reload the model list">↻</button>
+          <button type="button" id="modelForget" title="Remove this name from your saved list">✕</button></div>
+        <input name="llm_model" id="modelCustom" class="hidden" placeholder="Type a model name, e.g. qwen3:14b" style="margin-top:6px">
+        <div class="hint" id="modelHint"></div></div>
       ${F("llm_api_key", "API key", "password")}
       ${F("llm_base_url", "Base URL (OpenAI-compatible only — e.g. http://ollama:11434/v1)")}
       ${F("llm_web_search", "Let the AI search the web too (Anthropic only)", "check", "full")}
@@ -258,9 +263,52 @@ async function loadSettings() {
     e.preventDefault();
     const out = {};
     [...form.elements].forEach(el => { if (!el.name) return; out[el.name] = el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value; });
-    try { await api("/api/settings", { method: "PUT", body: out }); toast("Settings saved"); refreshStatus(); }
+    try { await api("/api/settings", { method: "PUT", body: out }); toast("Settings saved"); refreshStatus(); loadModels(); }
     catch (err) { toast("⚠️ " + err.message, 6000); }
   };
+  const OTHER = "__other__";
+  async function loadModels() {
+    const sel = $("#modelSelect"), custom = $("#modelCustom"), hint = $("#modelHint");
+    const current = custom.value.trim();
+    sel.disabled = true; hint.textContent = "Checking the AI server for models…";
+    let r;
+    try {
+      r = await api("/api/models", { method: "POST", body: {
+        llm_provider: form.elements.llm_provider.value, llm_base_url: form.elements.llm_base_url.value,
+        llm_api_key: form.elements.llm_api_key.value } });
+    } catch (err) { r = { installed: [], saved: [], error: err.message }; }
+    const installed = r.installed, saved = r.saved.filter(m => !installed.includes(m));
+    if (current && !installed.includes(current) && !saved.includes(current)) saved.unshift(current);
+    const opt = m => `<option value="${esc(m)}">${esc(m)}</option>`;
+    sel.innerHTML =
+      (installed.length ? `<optgroup label="Installed on the AI server">${installed.map(opt).join("")}</optgroup>` : "") +
+      (saved.length ? `<optgroup label="Saved names">${saved.map(opt).join("")}</optgroup>` : "") +
+      `<option value="${OTHER}">Other — type a name…</option>`;
+    sel.value = current || installed[0] || OTHER;
+    if (!current && sel.value !== OTHER) custom.value = sel.value;
+    custom.classList.toggle("hidden", sel.value !== OTHER);
+    $("#modelForget").disabled = !saved.includes(sel.value);
+    sel.disabled = false;
+    hint.textContent = r.error || (installed.length
+      ? `${installed.length} model(s) found on the server. Pick one and click Save settings.`
+      : "No models found on the server.");
+  }
+  $("#modelSelect").onchange = e => {
+    const v = e.target.value, custom = $("#modelCustom");
+    custom.classList.toggle("hidden", v !== OTHER);
+    if (v === OTHER) { custom.value = ""; custom.focus(); } else custom.value = v;
+    $("#modelForget").disabled = !$(`#modelSelect optgroup[label="Saved names"] option[value="${CSS.escape(v)}"]`);
+  };
+  $("#modelRefresh").onclick = loadModels;
+  $("#modelForget").onclick = async () => {
+    const v = $("#modelSelect").value; if (!v || v === OTHER) return;
+    await api(`/api/models/saved?name=${encodeURIComponent(v)}`, { method: "DELETE" });
+    if ($("#modelCustom").value === v) $("#modelCustom").value = "";
+    toast(`Forgot “${v}”`); loadModels();
+  };
+  form.elements.llm_provider.addEventListener("change", () => { $("#modelCustom").value = ""; loadModels(); });
+  form.elements.llm_base_url.addEventListener("change", loadModels);
+  loadModels();
   $("#testLlm").onclick = async e => {
     e.target.disabled = true; toast("Testing the AI… (local models can take a minute to load)", 60000);
     try { toast((await api("/api/test/llm", { method: "POST" })).message, 10000); }
