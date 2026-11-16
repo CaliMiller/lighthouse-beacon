@@ -47,11 +47,26 @@ def parse_client_config(text):
     return cfg
 
 
+def _redirect_for(cfg):
+    """Desktop clients accept any localhost URI. Web clients only accept registered ones."""
+    if "installed" in cfg:
+        return REDIRECT
+    uris = cfg["web"].get("redirect_uris") or []
+    for u in uris:
+        if u.startswith(("http://localhost", "http://127.0.0.1")):
+            return u
+    raise ValueError(
+        "Your OAuth client is the 'Web application' type and has no localhost redirect URI. "
+        "Easiest fix: in Google Cloud → Credentials, create a new OAuth client ID of type "
+        "'Desktop app' and upload that JSON. Or edit this web client, add "
+        f"{REDIRECT} under Authorized redirect URIs, then re-download and re-upload the JSON.")
+
+
 def _flow(s, verifier=None):
     if not s.get("youtube_client_config"):
         raise ValueError("Upload or paste your client_secret.json in Settings → YouTube and save first.")
     cfg = parse_client_config(s["youtube_client_config"])
-    f = Flow.from_client_config(cfg, scopes=SCOPES, redirect_uri=REDIRECT,
+    f = Flow.from_client_config(cfg, scopes=SCOPES, redirect_uri=_redirect_for(cfg),
                                 code_verifier=verifier, autogenerate_code_verifier=verifier is None)
     return f
 
