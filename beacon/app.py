@@ -186,6 +186,14 @@ def card_count(data: dict = Body(...)):
 
 
 # ---------- runs ----------
+@app.get("/api/last-reply")
+def last_reply():
+    p = writer.raw_path()
+    if not os.path.isfile(p):
+        raise HTTPException(404, "No AI reply saved yet")
+    return FileResponse(p, media_type="text/plain; charset=utf-8")
+
+
 @app.post("/api/fetch")
 def fetch_now():
     threading.Thread(target=jobs.run_fetch, daemon=True).start()

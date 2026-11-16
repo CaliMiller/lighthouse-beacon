@@ -31,7 +31,7 @@ async function refreshStatus() {
     const parts = [];
     if (s.fetching) parts.push("⏳ Fetching news…");
     if (s.next_fetch) parts.push(`Next fetch: ${new Date(s.next_fetch).toLocaleString()}`);
-    if (last) parts.push(`Last run ${new Date(last.started).toLocaleString()}: ${last.ok ? "✅" : "❌"} ${esc(last.message)}`);
+    if (last) parts.push(`Last run ${new Date(last.started).toLocaleString()}: ${last.ok ? "✅" : "❌"} ${esc(last.message)} · <a href="/api/last-reply" target="_blank" style="color:var(--accent)">last AI reply</a>`);
     if (s.queue) parts.push(`${s.queue} video(s) in queue`);
     if (!s.font) parts.push("⚠️ Arial Black font not found — see Settings");
     $("#statusbar").innerHTML = parts.join(" &nbsp;·&nbsp; ");

@@ -31,7 +31,10 @@ def run_fetch():
         for it in issues:
             db.add_issue(it)
         msg = f"{len(heads)} headlines → {len(issues)} issues"
-        db.log_run(started, True, msg)
+        ok = bool(issues)
+        if not issues:
+            msg += " — the AI's reply had no usable issues (see 'last AI reply' link)"
+        db.log_run(started, ok, msg)
         return msg
     except Exception as e:
         log.exception("fetch failed")
