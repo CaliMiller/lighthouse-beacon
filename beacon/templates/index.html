@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lighthouse Beacon</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/static/favicon.svg" alt=""> Lighthouse Beacon</div>
+  <nav>
+    <button data-view="pending" class="active">Review</button>
+    <button data-view="published">Published</button>
+    <button data-view="declined">Declined</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+  <div class="actions">
+    <button id="newBtn" class="ghost">+ My own message</button>
+    <button id="fetchBtn">Fetch news now</button>
+  </div>
+</header>
+<div id="statusbar"></div>
+<main id="main"></main>
+
+<div id="modal" class="modal hidden" role="dialog">
+  <div class="modal-body">
+    <img id="previewImg" alt="Card preview">
+    <p id="previewNote"></p>
+    <button id="closeModal">Close</button>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
