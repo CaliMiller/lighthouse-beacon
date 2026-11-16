@@ -7,7 +7,7 @@ import httpx
 
 log = logging.getLogger("beacon.writer")
 
-SYSTEM = """You write copy for "The Shelby Lighthouse", a digital sign on the front of a private home in \
+BASE = """You write copy for "The Shelby Lighthouse", a digital sign on the front of a private home in \
 Shelby County, Indiana. The sign is "a shining beacon for democracy and the resistance": openly progressive, \
 pro-democracy, anti-fascist political and social commentary, balanced with warm, unifying values like \
 "Trans rights are human rights" and "Be excellent to each other."
@@ -28,6 +28,9 @@ as opinion or satire, not as a factual claim.
 For issues that especially affect Spanish-speaking neighbors (immigration, ICE, deportations, etc.) set \
 "bilingual": true and give a natural Spanish translation ("es") for every line. Otherwise "es" is "".
 
+"""
+
+SYSTEM = BASE + """
 Respond with ONLY a JSON object, no prose, in exactly this shape:
 {"issues": [{
   "topic": "short neutral topic label",
@@ -163,7 +166,8 @@ def _call_openai(s, prompt, system=SYSTEM, max_tokens=None, json_mode=False):
     if max_tokens:
         body["max_tokens"] = max_tokens
     if json_mode:
-        body["response_format"] = {"type": "json_schema", "json_schema": {"name": "issues", "schema": SCHEMA}}
+        schema = json_mode if isinstance(json_mode, dict) else SCHEMA
+        body["response_format"] = {"type": "json_schema", "json_schema": {"name": "reply", "schema": schema}}
     last = None
     for attempt in range(4):  # local servers sometimes drop the first request while loading a model
         try:
@@ -215,15 +219,90 @@ def recommend_duration(n_cards):
     return min(120, max(30, n_cards * 15))
 
 
+PICK_SCHEMA = lambda n: {
+    "type": "object",
+    "properties": {"topics": {"type": "array", "minItems": min(3, n), "maxItems": n, "items": {
+        "type": "object",
+        "properties": {"topic": {"type": "string"}, "summary": {"type": "string"},
+                       "sources": {"type": "array", "items": {"type": "string"}},
+                       "bilingual": {"type": "boolean"}},
+        "required": ["topic", "summary", "sources", "bilingual"]}}},
+    "required": ["topics"]}
+
+LINES_SCHEMA = lambda n: {
+    "type": "object",
+    "properties": {
+        "lines": {"type": "array", "minItems": max(1, min(n, 3)), "maxItems": n + 2, "items": {
+            "type": "object", "properties": {"en": {"type": "string"}, "es": {"type": "string"}},
+            "required": ["en", "es"]}},
+        "yt_title": {"type": "string"},
+        "yt_tags": {"type": "array", "items": {"type": "string"}}},
+    "required": ["lines", "yt_title", "yt_tags"]}
+
+
+def _generate_stepwise(settings, headlines, recent, n_issues, n_lines):
+    """For local models: pick topics in one small call, then write lines per topic."""
+    heads = "\n".join(f"- [{h['source']}] {h['title']} — {h['summary'][:160]} ({h['link']})" for h in headlines[:150])
+    recent_txt = "\n".join(f"- {t}" for t in recent[:60]) or "(none)"
+    pick_prompt = f"""Today's headlines:
+{heads or "(none)"}
+
+Topics this sign cares about most: {settings["focus_topics"]}
+
+Already covered recently (skip unless there is a major new development):
+{recent_txt}
+
+Pick the {n_issues} most important DISTINCT issues in US national politics for progressives today.
+For each: a short neutral topic label, a 1-2 sentence factual summary, the source URLs from the list
+above, and bilingual=true only for issues that especially affect Spanish speakers (immigration, ICE).
+Return JSON: {{"topics": [{{"topic": "...", "summary": "...", "sources": ["..."], "bilingual": false}}]}}"""
+    raw = _call_openai(settings, pick_prompt, system=BASE, json_mode=PICK_SCHEMA(n_issues))
+    raws = [raw]
+    topics = [t for t in _issue_list(_extract_json(raw)) if isinstance(t, dict)][:n_issues]
+    out = []
+    for t in topics:
+        topic = str(_first(t, "topic", "title", "issue", default="")).strip()
+        if not topic:
+            continue
+        bilingual = bool(t.get("bilingual"))
+        lines_prompt = f"""Issue: {topic}
+What happened: {_first(t, "summary", "description", default="")}
+
+Write {n_lines} different one-liners for the sign about this issue. The first is a straight,
+punchy headline; the rest are witty jokes, wordplay or irony. Each under 15 words.
+{"Give a natural Spanish translation in 'es' for every line." if bilingual else "Leave 'es' as an empty string."}
+Also give a YouTube title (under 90 characters) and 5-10 tags.
+Return JSON: {{"lines": [{{"en": "...", "es": "..."}}], "yt_title": "...", "yt_tags": ["..."]}}"""
+        try:
+            raw2 = _call_openai(settings, lines_prompt, system=BASE, json_mode=LINES_SCHEMA(n_lines))
+        except Exception as e:
+            log.warning("lines for %r failed: %s", topic, e)
+            continue
+        raws.append(raw2)
+        try:
+            d = _extract_json(raw2)
+        except ValueError:
+            continue
+        if isinstance(d, list):
+            d = {"lines": d}
+        out.append({**t, "topic": topic, "bilingual": bilingual,
+                    "lines": _first(d, "lines", "one_liners", "headlines", default=[]),
+                    "yt_title": _first(d, "yt_title", "youtube_title", "title", default=""),
+                    "yt_tags": _first(d, "yt_tags", "tags", default=[])})
+    save_raw("\n\n----- next request -----\n\n".join(raws))
+    return out
+
+
 def generate(settings, headlines, recent):
     prompt = build_prompt(headlines, settings["focus_topics"], int(settings["issues_per_day"] or 8),
                           int(settings["lines_per_issue"] or 5), recent)
     if settings["llm_provider"] == "openai":
-        raw = _call_openai(settings, prompt, json_mode=True)
+        data = _generate_stepwise(settings, headlines, recent, int(settings["issues_per_day"] or 8),
+                                  int(settings["lines_per_issue"] or 5))
     else:
         raw = _call_anthropic(settings, prompt)
-    save_raw(raw)
-    data = _extract_json(raw)
+        save_raw(raw)
+        data = _extract_json(raw)
     out = []
     for it in _issue_list(data):
         if not isinstance(it, dict):

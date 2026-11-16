@@ -52,10 +52,16 @@ def _startup():
     jobs.start()
 
 
+def _asset_version():
+    paths = [os.path.join(HERE, "static", n) for n in ("app.js", "style.css")]
+    return str(int(max(os.path.getmtime(p) for p in paths)))
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     with open(os.path.join(HERE, "templates", "index.html"), encoding="utf-8") as f:
-        return f.read()
+        html = f.read().replace("{{v}}", _asset_version())
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/favicon.ico")
