@@ -15,7 +15,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/CaliMiller/lighthouse-be
 ```
 
 It asks for CT ID, RAM, disk, storage, bridge and IP (Enter takes the defaults: 2 cores, 2 GB RAM,
-8 GB disk, DHCP). It creates an unprivileged Debian 13 container (falls back to Debian 12), installs
+8 GB disk, DHCP). It creates an unprivileged Debian 13 container (or Debian 12 on Proxmox versions before 9 — force one with `DEBIAN_VERSION=12`), installs
 ffmpeg, Python, the Microsoft core fonts (for Arial Black) and the app, and prints the URL —
 `http://<container-ip>:8080`.
 

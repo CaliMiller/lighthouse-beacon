@@ -4,6 +4,7 @@
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/CaliMiller/lighthouse-beacon/main/install/proxmox-lxc.sh)"
 # Override any default with env vars, e.g.:
 #   CTID=150 STORAGE=local-zfs IP=192.168.1.50/24,gw=192.168.1.1 bash -c "$(curl -fsSL ...)"
+# Force a Debian release with DEBIAN_VERSION=12 (default: try 13, fall back to 12).
 # Developing locally? Run it from a checkout with LOCAL=1 to install that folder instead of GitHub.
 set -euo pipefail
 
@@ -44,21 +45,42 @@ if [[ -t 0 && -z "${NONINTERACTIVE:-}" ]]; then
 fi
 pct status "$CTID" >/dev/null 2>&1 && die "CT $CTID already exists."
 
-msg "Finding a Debian template"
-pveam update >/dev/null
-TEMPLATE=$(pveam available --section system | awk '{print $2}' | grep -E '^debian-13-standard' | sort -V | tail -1 || true)
-[[ -n "$TEMPLATE" ]] || TEMPLATE=$(pveam available --section system | awk '{print $2}' | grep -E '^debian-12-standard' | sort -V | tail -1)
-[[ -n "$TEMPLATE" ]] || die "No Debian template found."
-if ! pveam list "$TEMPLATE_STORAGE" | grep -q "$TEMPLATE"; then
-  msg "Downloading $TEMPLATE"; pveam download "$TEMPLATE_STORAGE" "$TEMPLATE"
-fi
-
+# Debian version: DEBIAN_VERSION=12 or 13 forces one. Otherwise try 13 and fall back to 12,
+# because older Proxmox releases (before PVE 9) refuse Debian 13 containers.
+pveam update >/dev/null || true
+template_for() {
+  pveam available --section system | awk '{print $2}' | grep -E "^debian-$1-standard" | sort -V | tail -1 || true
+}
+ensure_template() {
+  pveam list "$TEMPLATE_STORAGE" | grep -q "$1" || { msg "Downloading $1"; pveam download "$TEMPLATE_STORAGE" "$1"; }
+}
 NET="name=eth0,bridge=$BRIDGE,ip=$IP"
-msg "Creating CT $CTID ($HOSTNAME)"
-pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
-  --hostname "$HOSTNAME" --cores "$CORES" --memory "$MEMORY" --swap 512 \
-  --rootfs "$STORAGE:$DISK" --net0 "$NET" --unprivileged 1 --features nesting=1 \
-  --onboot 1 --ostype debian --description "Lighthouse Beacon — progressive headlines for The Shelby Lighthouse"
+create_ct() {
+  pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$1" \
+    --hostname "$HOSTNAME" --cores "$CORES" --memory "$MEMORY" --swap 512 \
+    --rootfs "$STORAGE:$DISK" --net0 "$NET" --unprivileged 1 --features nesting=1 \
+    --onboot 1 --ostype debian --description "Lighthouse Beacon — progressive headlines for The Shelby Lighthouse"
+}
+
+VERSIONS="${DEBIAN_VERSION:-13 12}"
+CREATED=""
+for v in $VERSIONS; do
+  TEMPLATE=$(template_for "$v")
+  [[ -n "$TEMPLATE" ]] || { msg "No Debian $v template available, skipping"; continue; }
+  ensure_template "$TEMPLATE"
+  msg "Creating CT $CTID ($HOSTNAME) from $TEMPLATE"
+  if out=$(create_ct "$TEMPLATE" 2>&1); then
+    echo "$out"; CREATED=1; break
+  fi
+  echo "$out"
+  if grep -qi "unsupported debian version" <<<"$out"; then
+    msg "This Proxmox version doesn't support Debian $v containers — trying an older Debian."
+    pct status "$CTID" >/dev/null 2>&1 && pct destroy "$CTID" --purge >/dev/null 2>&1 || true
+    continue
+  fi
+  die "Container creation failed (see above)."
+done
+[[ -n "$CREATED" ]] || die "Couldn't create the container with Debian ${VERSIONS// / or }."
 pct start "$CTID"
 
 msg "Waiting for network"
