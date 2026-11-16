@@ -11,7 +11,7 @@ async function api(path, opts = {}) {
   const r = await fetch(path, o);
   if (!r.ok) {
     let msg = r.statusText;
-    try { const j = await r.json(); msg = j.detail || j.message || msg; } catch {}
+    try { const t = await r.text(); try { const j = JSON.parse(t); msg = j.detail || j.message || msg; } catch { if (t) msg = `${r.status} ${t.slice(0, 200)}`; } } catch {}
     throw new Error(msg);
   }
   const ct = r.headers.get("content-type") || "";
@@ -231,7 +231,10 @@ async function loadSettings() {
       ${F("youtube_channel_id", "Channel ID to upload to (UC…) — uploads are refused if the authorized channel differs")}
       ${F("youtube_extra_tags", "Tags added to every video")}
       ${F("youtube_description", "Description footer", "textarea", "full")}
-      ${F("youtube_client_config", "OAuth client_secret.json (Desktop app type) — paste contents", "textarea", "full")}
+      <div class="full"><label>OAuth client_secret.json (Desktop app type)</label>
+        <input type="file" id="ytClientFile" accept=".json,application/json">
+        <div class="hint">Uploading is safest. Or paste the file's contents below and click Save settings.</div></div>
+      ${F("youtube_client_config", "…or paste contents", "textarea", "full")}
       <div class="full"><div id="ytStatus" class="hint">Checking…</div>
         <div class="foot"><button type="button" id="ytAuth">1. Authorize with Google</button></div>
         <label>2. After signing in, your browser lands on a localhost page that fails to load. Paste that page's full URL here:</label>
@@ -266,6 +269,14 @@ async function loadSettings() {
   $("#ytFinish").onclick = async () => {
     try { const r = await api("/api/youtube/finish", { method: "POST", body: { url: $("#ytPaste").value } }); toast(`Connected to ${r.title}`); ytStatus(); }
     catch (err) { toast("⚠️ " + err.message, 8000); }
+  };
+  $("#ytClientFile").onchange = async e => {
+    const fd = new FormData(); fd.append("file", e.target.files[0]);
+    try {
+      const r = await api("/api/youtube/client", { method: "POST", body: fd });
+      form.elements.youtube_client_config.value = "••••••••";
+      toast(`Client file loaded (${r.client_id.split("-")[0]}…). Now click “Authorize with Google”.`, 6000);
+    } catch (err) { toast("⚠️ " + err.message, 9000); }
   };
   $("#fontFile").onchange = async e => {
     const fd = new FormData(); fd.append("file", e.target.files[0]);

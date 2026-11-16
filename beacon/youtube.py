@@ -20,8 +20,37 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
 REDIRECT = "http://localhost:8765/"
 
 
+def parse_client_config(text):
+    """Parse client_secret.json text, tolerating curly quotes and junk around the JSON."""
+    t = (text or "").strip()
+    for a, b in (("\u201c", '"'), ("\u201d", '"'), ("\u2018", "'"), ("\u2019", "'"), ("\u00a0", " ")):
+        t = t.replace(a, b)
+    start, end = t.find("{"), t.rfind("}")
+    if start < 0 or end < 0:
+        raise ValueError("That doesn't look like a client_secret.json file (no JSON found).")
+    try:
+        cfg = json.loads(t[start:end + 1])
+    except json.JSONDecodeError as e:
+        raise ValueError(f"client_secret.json isn't valid JSON ({e.msg} at line {e.lineno}). "
+                         "Try the 'Upload client_secret.json' button instead of pasting.")
+    if "installed" not in cfg and "web" not in cfg:
+        if "type" in cfg and "private_key" in cfg:
+            raise ValueError("That's a service-account key. YouTube needs an OAuth client ID "
+                             "(Credentials → Create credentials → OAuth client ID → Desktop app).")
+        raise ValueError("client_secret.json must come from an OAuth client ID (Desktop app type).")
+    inner = cfg.get("installed") or cfg.get("web")
+    for k in ("client_id", "client_secret"):
+        if not inner.get(k):
+            raise ValueError(f"client_secret.json is missing '{k}'.")
+    inner.setdefault("auth_uri", "https://accounts.google.com/o/oauth2/auth")
+    inner.setdefault("token_uri", "https://oauth2.googleapis.com/token")
+    return cfg
+
+
 def _flow(s, verifier=None):
-    cfg = json.loads(s["youtube_client_config"])
+    if not s.get("youtube_client_config"):
+        raise ValueError("Upload or paste your client_secret.json in Settings → YouTube and save first.")
+    cfg = parse_client_config(s["youtube_client_config"])
     f = Flow.from_client_config(cfg, scopes=SCOPES, redirect_uri=REDIRECT,
                                 code_verifier=verifier, autogenerate_code_verifier=verifier is None)
     return f

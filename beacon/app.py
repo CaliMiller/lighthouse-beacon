@@ -1,5 +1,6 @@
 """Lighthouse Beacon web UI + JSON API."""
 import base64
+import json
 import logging
 import os
 import secrets
@@ -21,6 +22,12 @@ PASSWORD = os.environ.get("BEACON_PASSWORD", "")
 
 app = FastAPI(title="Lighthouse Beacon", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
+
+
+@app.exception_handler(Exception)
+async def _any_error(request: Request, exc: Exception):
+    logging.getLogger("beacon").exception("Unhandled error on %s", request.url.path)
+    return JSONResponse({"detail": f"{type(exc).__name__}: {exc}"}, status_code=500)
 
 
 @app.middleware("http")
@@ -207,6 +214,11 @@ def get_settings():
 def put_settings(data: dict = Body(...)):
     clean = {k: v for k, v in data.items()
              if k in db.DEFAULT_SETTINGS and k not in HIDDEN_KEYS and not (k in SECRET_KEYS and v == MASK)}
+    if clean.get("youtube_client_config", "").strip():
+        try:
+            clean["youtube_client_config"] = json.dumps(youtube.parse_client_config(clean["youtube_client_config"]))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
     if "fetch_time" in clean:
         hh, mm = clean["fetch_time"].split(":")
         assert 0 <= int(hh) < 24 and 0 <= int(mm) < 60
@@ -233,12 +245,22 @@ def test_anthias():
         return JSONResponse({"message": f"Failed: {e}"}, status_code=400)
 
 
+@app.post("/api/youtube/client")
+async def yt_client_upload(file: UploadFile = File(...)):
+    try:
+        cfg = youtube.parse_client_config((await file.read()).decode("utf-8", "replace"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    db.set_settings({"youtube_client_config": json.dumps(cfg), "youtube_token": ""})
+    return {"ok": True, "client_id": (cfg.get("installed") or cfg.get("web"))["client_id"]}
+
+
 @app.post("/api/youtube/auth-url")
 def yt_auth_url():
-    s = db.get_settings()
-    if not s.get("youtube_client_config"):
-        raise HTTPException(400, "Paste your client_secret.json into Settings first and save")
-    return {"url": youtube.auth_url(s)}
+    try:
+        return {"url": youtube.auth_url(db.get_settings())}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/youtube/finish")
