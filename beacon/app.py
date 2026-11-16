@@ -237,6 +237,17 @@ async def upload_font(file: UploadFile = File(...)):
     return {"font_path": path}
 
 
+@app.post("/api/test/llm")
+def test_llm():
+    import time
+    t = time.time()
+    try:
+        out = writer.test_connection(db.get_settings())
+        return {"message": f"OK in {time.time() - t:.1f}s — model replied: {out}"}
+    except Exception as e:
+        return JSONResponse({"message": f"Failed: {type(e).__name__}: {e}"}, status_code=400)
+
+
 @app.post("/api/test/anthias")
 def test_anthias():
     try:

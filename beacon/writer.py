@@ -85,18 +85,46 @@ def _call_anthropic(s, prompt):
     return texts[-1] if texts else ""
 
 
-def _call_openai(s, prompt):
+def _call_openai(s, prompt, system=SYSTEM, max_tokens=None):
     base = (s.get("llm_base_url") or "https://api.openai.com/v1").rstrip("/")
     headers = {"content-type": "application/json"}
     if s.get("llm_api_key"):
         headers["authorization"] = f"Bearer {s['llm_api_key']}"
-    r = httpx.post(base + "/chat/completions", headers=headers, timeout=600, json={
-        "model": s["llm_model"],
-        "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-        "temperature": 0.9,
-    })
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    body = {"model": s["llm_model"],
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            "temperature": 0.9}
+    if max_tokens:
+        body["max_tokens"] = max_tokens
+    last = None
+    for attempt in range(2):  # local servers sometimes drop the first request while loading a model
+        try:
+            r = httpx.post(base + "/chat/completions", headers=headers, json=body,
+                           timeout=httpx.Timeout(900, connect=15))
+            if r.status_code >= 400:
+                raise RuntimeError(f"AI server returned {r.status_code}: {r.text[:300]}")
+            return r.json()["choices"][0]["message"]["content"]
+        except (httpx.RemoteProtocolError, httpx.ReadError) as e:
+            last = e
+            log.warning("AI server dropped the connection (attempt %d): %s", attempt + 1, e)
+    raise RuntimeError(
+        f"The AI server at {base} hung up without answering ({last}). This usually means the model "
+        "crashed or ran out of memory — check the server's log (journalctl -u ollama).")
+
+
+def test_connection(s):
+    """Tiny round-trip so Settings can show whether the AI is reachable and working."""
+    if s["llm_provider"] == "openai":
+        out = _call_openai(s, 'Reply with exactly: {"ok": true}', system="You are a test endpoint.", max_tokens=20)
+    else:
+        r = httpx.post((s.get("llm_base_url") or "https://api.anthropic.com").rstrip("/") + "/v1/messages",
+                       headers={"x-api-key": s["llm_api_key"], "anthropic-version": "2023-06-01"},
+                       json={"model": s["llm_model"], "max_tokens": 20,
+                             "messages": [{"role": "user", "content": 'Reply with exactly: {"ok": true}'}]},
+                       timeout=60)
+        if r.status_code >= 400:
+            raise RuntimeError(f"Anthropic returned {r.status_code}: {r.text[:300]}")
+        out = "".join(b.get("text", "") for b in r.json().get("content", []))
+    return out.strip()[:200]
 
 
 BANNED = re.compile(r"\b(fuck\w*|shit\w*|bitch\w*|asshole\w*|bastard\w*|cunt\w*|dick(head)?s?|piss\w*|damn\w*|goddamn\w*)\b", re.I)

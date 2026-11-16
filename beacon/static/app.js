@@ -207,6 +207,8 @@ async function loadSettings() {
       ${F("llm_api_key", "API key", "password")}
       ${F("llm_base_url", "Base URL (OpenAI-compatible only — e.g. http://ollama:11434/v1)")}
       ${F("llm_web_search", "Let the AI search the web too (Anthropic only)", "check", "full")}
+      <div class="full"><button type="button" id="testLlm">Test AI connection</button>
+        <span class="hint">Save settings first. The first test can take a minute while a local model loads.</span></div>
       ${F("issues_per_day", "Issues per day", "number")}
       ${F("lines_per_issue", "One-liners per issue", "number")}
       ${F("focus_topics", "Topics to prioritize", "textarea", "full")}
@@ -258,6 +260,12 @@ async function loadSettings() {
     [...form.elements].forEach(el => { if (!el.name) return; out[el.name] = el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value; });
     try { await api("/api/settings", { method: "PUT", body: out }); toast("Settings saved"); refreshStatus(); }
     catch (err) { toast("⚠️ " + err.message, 6000); }
+  };
+  $("#testLlm").onclick = async e => {
+    e.target.disabled = true; toast("Testing the AI… (local models can take a minute to load)", 60000);
+    try { toast((await api("/api/test/llm", { method: "POST" })).message, 10000); }
+    catch (err) { toast("⚠️ " + err.message, 15000); }
+    finally { e.target.disabled = false; }
   };
   $("#testAnthias").onclick = async () => {
     try { toast((await api("/api/test/anthias", { method: "POST" })).message); } catch (err) { toast("⚠️ " + err.message, 6000); }
