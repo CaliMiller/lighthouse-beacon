@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import anthias, db, jobs, render, writer, youtube
+from . import __version__, anthias, db, jobs, render, writer, youtube
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 HERE = os.path.dirname(__file__)
@@ -20,7 +20,7 @@ HIDDEN_KEYS = {"youtube_pending_verifier"}
 MASK = "••••••••"
 PASSWORD = os.environ.get("BEACON_PASSWORD", "")
 
-app = FastAPI(title="Lighthouse Beacon", docs_url=None, redoc_url=None)
+app = FastAPI(title="Lighthouse Beacon", version=__version__, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
 
@@ -60,13 +60,23 @@ def _asset_version():
 @app.get("/", response_class=HTMLResponse)
 def index():
     with open(os.path.join(HERE, "templates", "index.html"), encoding="utf-8") as f:
-        html = f.read().replace("{{v}}", _asset_version())
+        html = f.read().replace("{{v}}", _asset_version()).replace("{{version}}", __version__)
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse(os.path.join(HERE, "static", "favicon.svg"), media_type="image/svg+xml")
+    return FileResponse(os.path.join(HERE, "static", "favicon.ico"), media_type="image/x-icon")
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    return JSONResponse({
+        "name": "Lighthouse Beacon", "short_name": "Beacon", "start_url": "/", "display": "standalone",
+        "background_color": "#0f1216", "theme_color": "#171b22",
+        "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                  {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"}],
+    }, media_type="application/manifest+json")
 
 
 # ---------- issues ----------
@@ -228,7 +238,7 @@ def status():
         font = render.find_font(db.get_setting("font_path"))
     except FileNotFoundError:
         font = ""
-    return {"fetching": jobs._fetch_lock.locked(), "queue": jobs._q.qsize(), "runs": db.last_runs(),
+    return {"version": __version__, "fetching": jobs._fetch_lock.locked(), "queue": jobs._q.qsize(), "runs": db.last_runs(),
             "next_fetch": nxt.next_run_time.isoformat() if nxt and nxt.next_run_time else None, "font": font}
 
 

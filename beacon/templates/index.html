@@ -5,11 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lighthouse Beacon</title>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/icon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#171b22">
+<meta name="apple-mobile-web-app-title" content="Beacon">
 <link rel="stylesheet" href="/static/style.css?v={{v}}">
 </head>
 <body>
 <header>
-  <div class="brand"><img src="/static/favicon.svg" alt=""> Lighthouse Beacon</div>
+  <div class="brand"><img src="/static/favicon.svg" alt=""> Lighthouse Beacon <span class="version">v{{version}}</span></div>
   <nav>
     <button data-view="pending" class="active">Review</button>
     <button data-view="published">Published</button>

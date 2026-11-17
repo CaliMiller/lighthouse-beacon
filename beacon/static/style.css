@@ -9,6 +9,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 sys
 header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
 .brand img { width: 28px; height: 28px; }
+.brand .version { font-size: 12px; font-weight: 400; color: var(--muted); }
 nav { display: flex; gap: 4px; flex: 1; }
 nav button { background: transparent; border-color: transparent; color: var(--muted); }
 nav button.active { color: var(--text); background: var(--panel2); border-color: var(--border); }

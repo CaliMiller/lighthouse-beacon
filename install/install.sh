@@ -85,5 +85,6 @@ systemctl enable --now $APP
 systemctl restart $APP
 
 IP=$(hostname -I | awk '{print $1}')
-msg "Done! Open http://${IP}:${PORT} and fill in Settings."
+VER=$(grep -oP '__version__ = "\K[^"]+' "$APP_DIR/beacon/__init__.py" || echo "?")
+msg "Lighthouse Beacon v${VER} is running. Open http://${IP}:${PORT} and fill in Settings."
 fc-list | grep -qi "arial black" && msg "Arial Black: installed" || echo "!! Arial Black not found — upload ariblk.ttf in Settings → Video font."
