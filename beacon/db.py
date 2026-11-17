@@ -49,6 +49,7 @@ DEFAULT_SETTINGS = {
     "anthias_user": "",
     "anthias_password": "",
     "anthias_days": "7",                  # how long the asset stays scheduled
+    "anthias_position": "end",            # end | start — where new videos go in the playlist
     "anthias_verify_tls": "0",
     "youtube_enabled": "0",
     "youtube_channel_id": "",

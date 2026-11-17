@@ -234,6 +234,7 @@ async function loadSettings() {
       ${F("anthias_enabled", "Send approved videos to Anthias", "check", "full")}
       ${F("anthias_url", "Anthias URL")}
       ${F("anthias_days", "Keep in playlist for (days)", "number")}
+      ${F("anthias_position", "Where new videos go in the playlist", "select:end|start")}
       ${F("anthias_user", "Username (if auth enabled)")}
       ${F("anthias_password", "Password", "password")}
       ${F("anthias_verify_tls", "Verify HTTPS certificate", "check")}

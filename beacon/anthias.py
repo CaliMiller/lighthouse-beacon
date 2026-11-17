@@ -34,8 +34,19 @@ def _check(r, step):
                            f"(status {r.status_code}). Is the Anthias URL correct?")
 
 
+def _current_order(c):
+    """Active asset ids in the order the player actually shows them."""
+    assets = _check(c.get("/api/v2/assets"), "Reading the playlist")
+    active = [a for a in assets if a.get("is_active", a.get("is_enabled"))]
+    active.sort(key=lambda a: (a.get("play_order") or 0))
+    return [a["asset_id"] for a in active if a.get("asset_id")]
+
+
 def upload(s, video_path, name, duration, log=lambda m: None):
     with _client(s) as c:
+        # Anthias renumbers the whole playlist in creation order whenever an asset is added,
+        # so remember the real order first and put it back afterwards.
+        order = _current_order(c)
         size_mb = os.path.getsize(video_path) / 1_048_576
         log(f"Anthias: uploading {os.path.basename(video_path)} ({size_mb:.1f} MB)…")
         with open(video_path, "rb") as f:
@@ -58,9 +69,23 @@ def upload(s, video_path, name, duration, log=lambda m: None):
             "is_enabled": True,
             "nocache": False,
             "skip_asset_check": False,
+            "play_order": len(order) if s.get("anthias_position", "end") != "start" else 0,
         })
         created = _check(r, "Adding it to the playlist")
-        return created.get("asset_id", "")
+        new_id = created.get("asset_id", "")
+        if new_id:
+            ids = [i for i in order if i != new_id]
+            ids = [new_id] + ids if s.get("anthias_position") == "start" else ids + [new_id]
+            try:
+                r = c.post("/api/v2/assets/order", json={"ids": ",".join(ids)})
+                if r.status_code >= 400:
+                    raise RuntimeError(f"{r.status_code}: {r.text[:200]}")
+                where = "top" if s.get("anthias_position") == "start" else "end"
+                log(f"Anthias: kept your playlist order and put the new video at the {where} ({len(ids)} items)")
+            except Exception as e:
+                log(f"Anthias: video added, but restoring the playlist order failed ({e}); "
+                    "check the order in Anthias")
+        return new_id
 
 
 def test(s):
