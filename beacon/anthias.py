@@ -51,7 +51,8 @@ def upload(s, video_path, name, duration, log=lambda m: None):
             "uri": staged["uri"],
             "ext": staged.get("ext", ".mp4"),
             "mimetype": "video",
-            "duration": int(round(duration)),
+            # Anthias rejects any other value for videos: it reads the real length from the file.
+            "duration": 0,
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
             "is_enabled": True,
