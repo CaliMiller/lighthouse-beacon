@@ -109,3 +109,7 @@ install/install.sh   Debian installer             install/proxmox-lxc.sh  PVE ho
 
 Logs: `journalctl -u lighthouse-beacon -f`. Data and videos: `/var/lib/lighthouse-beacon`. Local
 MP4s are deleted after 30 days. Copies in Anthias and on YouTube are not affected.
+
+## Credits
+
+Code and design developed in collaboration with Claude (Anthropic).
