@@ -74,6 +74,7 @@ function issueHTML(it) {
   else foot = `
       <button class="restore">✎ Edit &amp; redo</button>
       <button class="retry" ${["queued", "rendering"].includes(it.status) ? "disabled" : ""}>↻ Re-run publish</button>
+      ${it.video_path ? `<button class="toAnthias" title="Upload this video to Anthias only — doesn't re-post to YouTube">📺 Send to Anthias</button>` : ""}
       ${it.video_path ? `<a href="/api/issues/${it.id}/video" download><button>⬇ MP4</button></a>` : ""}
       ${ytLink}<span class="spacer"></span>
       <button class="delete danger">Delete</button>`;
@@ -166,8 +167,13 @@ function wire(card) {
         toast("Approved — rendering and publishing in the background"); card.remove(); emptyCheck();
       } else if (b.classList.contains("decline")) { await api(`/api/issues/${id}/decline`, { method: "POST" }); card.remove(); emptyCheck(); }
       else if (b.classList.contains("restore")) { await api(`/api/issues/${id}/restore`, { method: "POST" }); card.remove(); toast("Moved back to Review"); emptyCheck(); }
+      else if (b.classList.contains("toAnthias")) {
+        b.disabled = true; toast("Sending to Anthias…", 60000);
+        try { await api(`/api/issues/${id}/anthias`, { method: "POST" }); toast("Added to the Anthias playlist ✅"); }
+        finally { load(); }
+      }
       else if (b.classList.contains("retry")) {
-        if (!confirm("Re-render and publish again? This may create a duplicate on Anthias/YouTube.")) return;
+        if (!confirm("Re-render and publish again? This re-uploads to YouTube too, which can create a duplicate. To fix only Anthias, use “Send to Anthias” instead.")) return;
         await api(`/api/issues/${id}/approve`, { method: "POST" }); load();
       } else if (b.classList.contains("delete")) {
         if (!confirm("Delete this issue and its video file? (Doesn't remove it from Anthias or YouTube.)")) return;

@@ -85,13 +85,10 @@ def process(issue_id):
 
     problems = []
     if s.get("anthias_enabled") == "1":
-        try:
-            aid = anthias.upload(s, out, f"Beacon: {issue['topic']}", issue["duration"])
-            db.update_issue(issue_id, anthias_id=aid)
-            db.append_log(issue_id, f"Added to Anthias (asset {aid})")
-        except Exception as e:
+        if not send_to_anthias(issue_id, s, out, issue):
             problems.append("Anthias")
-            db.append_log(issue_id, f"Anthias upload failed: {e}")
+    else:
+        db.append_log(issue_id, "Anthias: skipped — 'Send approved videos to Anthias' is off in Settings")
 
     if s.get("youtube_enabled") == "1":
         try:
@@ -110,6 +107,18 @@ def process(issue_id):
             db.append_log(issue_id, f"YouTube upload failed: {e}")
 
     db.update_issue(issue_id, status="error" if problems else "done")
+
+
+def send_to_anthias(issue_id, s, video_path, issue):
+    try:
+        aid = anthias.upload(s, video_path, f"Beacon: {issue['topic']}", issue["duration"],
+                             log=lambda m: db.append_log(issue_id, m))
+        db.update_issue(issue_id, anthias_id=aid)
+        db.append_log(issue_id, f"Added to Anthias playlist (asset {aid})")
+        return True
+    except Exception as e:
+        db.append_log(issue_id, f"Anthias upload failed: {e}")
+        return False
 
 
 def _worker():

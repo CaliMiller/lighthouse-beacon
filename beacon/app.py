@@ -150,6 +150,21 @@ def delete(iid: int):
     return {"ok": True}
 
 
+@app.post("/api/issues/{iid}/anthias")
+def resend_anthias(iid: int):
+    """Send an already-rendered video to Anthias only (no YouTube re-upload)."""
+    it = _get(iid)
+    if not it["video_path"] or not os.path.isfile(it["video_path"]):
+        raise HTTPException(400, "This issue has no rendered video file anymore")
+    ok = jobs.send_to_anthias(iid, db.get_settings(), it["video_path"], it)
+    if ok and it["status"] == "error":
+        db.update_issue(iid, status="done")
+    it = db.get_issue(iid)
+    if not ok:
+        raise HTTPException(400, it["log"].strip().splitlines()[-1])
+    return it
+
+
 @app.get("/api/issues/{iid}/video")
 def video(iid: int):
     it = _get(iid)
