@@ -1,4 +1,4 @@
-"""Turn raw headlines into sign-ready issues and one-liners with an LLM."""
+"""Turn raw headlines into sign-ready topics and one-liners with an LLM."""
 import json
 import logging
 import re
@@ -25,14 +25,14 @@ as opinion or satire, not as a factual claim.
 - No calls for violence or harassment, and nothing about private individuals.
 - No hashtags, emojis or URLs.
 
-For issues that especially affect Spanish-speaking neighbors (immigration, ICE, deportations, etc.) set \
+For topics that especially affect Spanish-speaking neighbors (immigration, ICE, deportations, etc.) set \
 "bilingual": true and give a natural Spanish translation ("es") for every line. Otherwise "es" is "".
 
 """
 
 SYSTEM = BASE + """
 Respond with ONLY a JSON object, no prose, in exactly this shape:
-{"issues": [{
+{"topics": [{
   "topic": "short neutral topic label",
   "summary": "1-2 sentence factual summary of the news",
   "sources": ["url", ...],
@@ -54,7 +54,7 @@ Topics this sign cares about most: {focus}
 Already covered recently (skip unless there is a major new development):
 {recent_txt}
 
-Pick up to {n_issues} distinct issues. Write {n_lines} different one-liners for each issue \
+Pick up to {n_issues} distinct topics. Write {n_lines} different one-liners for each topic \
 (variety: one straight headline, the rest witty). Return the JSON now."""
 
 
@@ -90,7 +90,7 @@ def _first(d, *keys, default=None):
 
 
 def _issue_list(data):
-    """Find the list of issues wherever the model put it."""
+    """Find the list of topics wherever the model put it."""
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
@@ -140,7 +140,7 @@ def _call_anthropic(s, prompt):
 
 SCHEMA = {
     "type": "object",
-    "properties": {"issues": {"type": "array", "items": {
+    "properties": {"topics": {"type": "array", "items": {
         "type": "object",
         "properties": {
             "topic": {"type": "string"}, "summary": {"type": "string"},
@@ -151,7 +151,7 @@ SCHEMA = {
             "yt_title": {"type": "string"},
             "yt_tags": {"type": "array", "items": {"type": "string"}}},
         "required": ["topic", "summary", "sources", "bilingual", "lines", "yt_title", "yt_tags"]}}},
-    "required": ["issues"],
+    "required": ["topics"],
 }
 
 
@@ -252,9 +252,9 @@ Topics this sign cares about most: {settings["focus_topics"]}
 Already covered recently (skip unless there is a major new development):
 {recent_txt}
 
-Pick the {n_issues} most important DISTINCT issues in US national politics for progressives today.
+Pick the {n_issues} most important DISTINCT topics in US national politics for progressives today.
 For each: a short neutral topic label, a 1-2 sentence factual summary, the source URLs from the list
-above, and bilingual=true only for issues that especially affect Spanish speakers (immigration, ICE).
+above, and bilingual=true only for topics that especially affect Spanish speakers (immigration, ICE).
 Return JSON: {{"topics": [{{"topic": "...", "summary": "...", "sources": ["..."], "bilingual": false}}]}}"""
     raw = _call_openai(settings, pick_prompt, system=BASE, json_mode=PICK_SCHEMA(n_issues))
     raws = [raw]
@@ -265,10 +265,10 @@ Return JSON: {{"topics": [{{"topic": "...", "summary": "...", "sources": ["..."]
         if not topic:
             continue
         bilingual = bool(t.get("bilingual"))
-        lines_prompt = f"""Issue: {topic}
+        lines_prompt = f"""Topic: {topic}
 What happened: {_first(t, "summary", "description", default="")}
 
-Write {n_lines} different one-liners for the sign about this issue. The first is a straight,
+Write {n_lines} different one-liners for the sign about this topic. The first is a straight,
 punchy headline; the rest are witty jokes, wordplay or irony. Each under 15 words.
 {"Give a natural Spanish translation in 'es' for every line." if bilingual else "Leave 'es' as an empty string."}
 Also give a YouTube title (under 90 characters) and 5-10 tags.

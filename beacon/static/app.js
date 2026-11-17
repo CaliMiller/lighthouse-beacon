@@ -176,7 +176,7 @@ function wire(card) {
         if (!confirm("Re-render and publish again? This re-uploads to YouTube too, which can create a duplicate. To fix only Anthias, use “Send to Anthias” instead.")) return;
         await api(`/api/issues/${id}/approve`, { method: "POST" }); load();
       } else if (b.classList.contains("delete")) {
-        if (!confirm("Delete this issue and its video file? (Doesn't remove it from Anthias or YouTube.)")) return;
+        if (!confirm("Delete this topic and its video file? (Doesn't remove it from Anthias or YouTube.)")) return;
         await api(`/api/issues/${id}`, { method: "DELETE" }); card.remove(); emptyCheck();
       }
     } catch (err) { toast("⚠️ " + err.message, 6000); }
@@ -220,8 +220,8 @@ async function loadSettings() {
       ${F("llm_web_search", "Let the AI search the web too (Anthropic only)", "check", "full")}
       <div class="full"><button type="button" id="testLlm">Test AI connection</button>
         <span class="hint">Save settings first. The first test can take a minute while a local model loads.</span></div>
-      ${F("issues_per_day", "Issues per day", "number")}
-      ${F("lines_per_issue", "One-liners per issue", "number")}
+      ${F("issues_per_day", "Topics per day", "number")}
+      ${F("lines_per_issue", "One-liners per topic", "number")}
       ${F("focus_topics", "Topics to prioritize", "textarea", "full")}
       ${F("feeds", "News feeds (RSS/Atom, one per line, # to disable)", "textarea", "full")}
     </div></section>
@@ -360,7 +360,7 @@ $$("nav button").forEach(b => b.onclick = () => {
   view = b.dataset.view; load();
 });
 $("#fetchBtn").onclick = async () => {
-  await api("/api/fetch", { method: "POST" }); toast("Fetching today's news — new issues will show up here in a minute or two.");
+  await api("/api/fetch", { method: "POST" }); toast("Fetching today's news — new topics will show up here in a minute or two.");
   setTimeout(refreshStatus, 500);
 };
 $("#newBtn").onclick = async () => {

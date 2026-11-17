@@ -7,8 +7,8 @@ First release.
 ### Features
 - Daily news run from RSS feeds at a set time, plus **Fetch news now** at any time.
 - AI writer: Claude, with optional web search, or any OpenAI-compatible server such as Ollama.
-  Writes several one-liners per issue in plain, profanity-free English, with Spanish versions for
-  issues like immigration.
+  Writes several one-liners per topic in plain, profanity-free English, with Spanish versions for
+  topics like immigration.
 - Dark-mode review dashboard: editable lines, line picking and reordering, card preview,
   recommended video length (30 s for one card, up to 120 s for several), approve or decline.
 - Title-card renderer: white Arial Black on black, 1920×1080 H.264 MP4, no audio, auto-sized for
@@ -24,7 +24,7 @@ First release.
 - A model dropdown that lists the models installed on Ollama or available from Claude, and
   remembers names you type.
 - **Test AI connection** and **Test connection** (Anthias) buttons.
-- A **last AI reply** link for diagnosing runs that produce no issues.
+- A **last AI reply** link for diagnosing runs that produce no topics.
 - **Send to Anthias** on each published video, to retry Anthias without re-uploading to YouTube.
 - An upload button for YouTube's `client_secret.json`, with clear errors for the wrong file or
   client type.

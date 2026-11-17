@@ -4,12 +4,12 @@
 
 Daily progressive headlines for **[The Shelby Lighthouse](https://shelbylight.house)** sign. Every
 morning Beacon reads US national political news and has an AI write several witty, profanity-free
-one-liners per issue. It puts them in a dark-mode web dashboard, where you edit, approve or decline
-each one. Approved issues become silent 1080p title-card videos that go to your Anthias playlist and
+one-liners per topic. It puts them in a dark-mode web dashboard, where you edit, approve or decline
+each one. Approved topics become silent 1080p title-card videos that go to your Anthias playlist and
 your YouTube channel.
 
 - 📰 **Daily news run.** RSS feeds (NPR, Guardian, MS NOW, Politico and more), optionally plus web search, every morning or on demand
-- ✍️ **AI writer.** Claude, or a local model through Ollama, writes 5 one-liners per issue: one straight headline, the rest jokes. English and Spanish for issues like immigration
+- ✍️ **AI writer.** Claude, or a local model through Ollama, writes 5 one-liners per topic: one straight headline, the rest jokes. English and Spanish for topics like immigration
 - 🗂️ **Review dashboard.** Every line is an editable text box. Pick lines, reorder them, preview the actual card, set the video length
 - 🎬 **Title-card videos.** White Arial Black on black, 1920×1080 H.264 MP4, no sound, sized to read from 50 ft on a 50″ TV. Long lines split onto extra cards automatically
 - 📺 **Anthias.** New videos join the playlist at the end without disturbing your order
@@ -114,7 +114,7 @@ Small models handle that far more reliably than one huge request.
 
 ## Using it
 
-- **Review** lists today's issues. Each one-liner is an editable text box.
+- **Review** lists today's topics. Each one-liner is an editable text box.
   - ☑ picks which lines go on the video, ↑ moves a line up, and 👁 previews the actual card.
     Shift-click 👁 to preview the Spanish line.
   - **English + Spanish** adds a translation box under each line. Each Spanish card plays right
@@ -122,7 +122,7 @@ Small models handle that far more reliably than one huge request.
   - **Length:** Beacon recommends 30 s for one card and up to 120 s for several. You can set any
     length, and each card gets an equal share.
   - **Approve & publish** renders the video, then sends it to Anthias and YouTube in the
-    background. **Decline** hides the issue.
+    background. **Decline** hides the topic.
 - **Published** shows each video's progress, log, player, MP4 download and YouTube link.
   - **📺 Send to Anthias** re-sends that video to Anthias only.
   - **↻ Re-run publish** renders again and re-uploads everywhere, YouTube included.
@@ -139,7 +139,7 @@ clause break onto an extra card, and the preview warns you when that will happen
 
 | Symptom | Where to look |
 |---|---|
-| A news run finds 0 issues | Open the **last AI reply** link in the status bar to see exactly what the AI returned |
+| A news run finds 0 topics | Open the **last AI reply** link in the status bar to see exactly what the AI returned |
 | "The AI server hung up" | The model crashed or ran out of memory. On the Ollama host, check `journalctl -u ollama` and `ollama ps` |
 | A video didn't reach Anthias | Read that video's log on the **Published** tab. It says whether Anthias was off in Settings, asked for a login, redirected to another address, or rejected the file |
 | The Anthias playlist order changed | Beacon puts your order back after each upload; set where new videos go in Settings → Anthias. Other tools that add assets through the Anthias API hit [Anthias #3455](https://github.com/Screenly/Anthias/issues/3455) |

@@ -30,10 +30,10 @@ def run_fetch():
         issues = writer.generate(s, heads, db.recent_topics())
         for it in issues:
             db.add_issue(it)
-        msg = f"{len(heads)} headlines → {len(issues)} issues"
+        msg = f"{len(heads)} headlines → {len(issues)} topic{'' if len(issues) == 1 else 's'}"
         ok = bool(issues)
         if not issues:
-            msg += " — the AI's reply had no usable issues (see 'last AI reply' link)"
+            msg += " — the AI's reply had no usable topics (see 'last AI reply' link)"
         db.log_run(started, ok, msg)
         return msg
     except Exception as e:
@@ -69,7 +69,7 @@ def enqueue(issue_id):
 
 
 def _slug(t):
-    return re.sub(r"[^a-z0-9]+", "-", t.lower()).strip("-")[:50] or "issue"
+    return re.sub(r"[^a-z0-9]+", "-", t.lower()).strip("-")[:50] or "topic"
 
 
 def process(issue_id):

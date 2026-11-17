@@ -92,7 +92,7 @@ def list_issues(view: str = "pending"):
 def _get(iid):
     it = db.get_issue(iid)
     if not it:
-        raise HTTPException(404, "No such issue")
+        raise HTTPException(404, "No such topic")
     return it
 
 
@@ -165,7 +165,7 @@ def resend_anthias(iid: int):
     """Send an already-rendered video to Anthias only (no YouTube re-upload)."""
     it = _get(iid)
     if not it["video_path"] or not os.path.isfile(it["video_path"]):
-        raise HTTPException(400, "This issue has no rendered video file anymore")
+        raise HTTPException(400, "This topic has no rendered video file anymore")
     ok = jobs.send_to_anthias(iid, db.get_settings(), it["video_path"], it)
     if ok and it["status"] == "error":
         db.update_issue(iid, status="done")
