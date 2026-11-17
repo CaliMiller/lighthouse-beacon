@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.1 — 2026-11-17
+
+### Changed
+- Says "topic" instead of "issue" everywhere you see it: the dashboard, settings, status line,
+  logs, video file names, AI prompts, README and changelog. "Issues" sounded like problems with
+  the app. Internal names are unchanged, so existing installs and data keep working.
+
 ## v1.0.0 — 2026-11-17
 
 First release.
