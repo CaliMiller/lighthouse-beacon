@@ -2,7 +2,7 @@
 
 # Lighthouse Beacon
 
-Daily progressive headlines for **[The Shelby Lighthouse](https://shelbylight.house)** sign. Every
+Daily progressive headlines for **[The Shelby Lighthouse](https://shelbylight.house)** digital signage. Every
 morning Beacon reads US national political news and has an AI write several witty, profanity-free
 one-liners per topic. It puts them in a dark-mode web dashboard, where you edit, approve or decline
 each one. Approved topics become silent 1080p title-card videos that go to your Anthias playlist and
