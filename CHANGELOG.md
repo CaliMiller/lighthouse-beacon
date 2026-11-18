@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.1.0 — 2026-11-17
 
 ### Added
 - Bulk actions. A checkbox on every topic, plus **Select all** / **Select none** bars at the top
