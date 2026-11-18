@@ -2,6 +2,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let view = "pending";
+let picked = new Set();          // ids of topics ticked for a bulk action (survives auto-refresh)
 
 async function api(path, opts = {}) {
   const o = { headers: {}, ...opts };
@@ -57,6 +58,7 @@ function lineHTML(c, bilingual) {
 
 function issueHTML(it) {
   const editable = it.status === "pending";
+  const busy = ["queued", "rendering", "publishing"].includes(it.status);
   const srcs = (it.sources || []).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">source ${i + 1}</a>`).join("");
   const video = it.video_path && ["rendered", "done", "error"].includes(it.status)
     ? `<video controls preload="none" src="/api/issues/${it.id}/video"></video>` : "";
@@ -73,14 +75,16 @@ function issueHTML(it) {
       <button class="delete danger">Delete</button>`;
   else foot = `
       <button class="restore">✎ Edit &amp; redo</button>
-      <button class="retry" ${["queued", "rendering"].includes(it.status) ? "disabled" : ""}>↻ Re-run publish</button>
+      <button class="retry" ${busy ? "disabled" : ""}>↻ Re-run publish</button>
       ${it.video_path ? `<button class="toAnthias" title="Upload this video to Anthias only — doesn't re-post to YouTube">📺 Send to Anthias</button>` : ""}
       ${it.video_path ? `<a href="/api/issues/${it.id}/video" download><button>⬇ MP4</button></a>` : ""}
       ${ytLink}<span class="spacer"></span>
       <button class="delete danger">Delete</button>`;
 
-  return `<article class="card" data-id="${it.id}">
+  return `<article class="card ${picked.has(it.id) ? "picked" : ""}" data-id="${it.id}">
     <div class="card-head">
+      <input type="checkbox" class="pick" aria-label="Select this topic" ${picked.has(it.id) ? "checked" : ""}
+        ${busy ? 'disabled title="Busy — wait until it finishes"' : ""}>
       <input class="topic" value="${esc(it.topic)}" ${editable ? "" : "readonly"}>
       <span class="badge ${esc(it.status)}">${esc(it.status)}</span>
     </div>
@@ -164,9 +168,9 @@ function wire(card) {
       } else if (b.classList.contains("save")) { await api(`/api/issues/${id}`, { method: "PUT", body: collect(card) }); toast("Saved"); }
       else if (b.classList.contains("approve")) {
         await api(`/api/issues/${id}/approve`, { method: "POST", body: collect(card) });
-        toast("Approved — rendering and publishing in the background"); card.remove(); emptyCheck();
-      } else if (b.classList.contains("decline")) { await api(`/api/issues/${id}/decline`, { method: "POST" }); card.remove(); emptyCheck(); }
-      else if (b.classList.contains("restore")) { await api(`/api/issues/${id}/restore`, { method: "POST" }); card.remove(); toast("Moved back to Review"); emptyCheck(); }
+        toast("Approved — rendering and publishing in the background"); picked.delete(+id); card.remove(); updateBulk(); emptyCheck();
+      } else if (b.classList.contains("decline")) { await api(`/api/issues/${id}/decline`, { method: "POST" }); picked.delete(+id); card.remove(); updateBulk(); emptyCheck(); }
+      else if (b.classList.contains("restore")) { await api(`/api/issues/${id}/restore`, { method: "POST" }); picked.delete(+id); card.remove(); updateBulk(); toast("Moved back to Review"); emptyCheck(); }
       else if (b.classList.contains("toAnthias")) {
         b.disabled = true; toast("Sending to Anthias…", 60000);
         try { await api(`/api/issues/${id}/anthias`, { method: "POST" }); toast("Added to the Anthias playlist ✅"); }
@@ -177,12 +181,87 @@ function wire(card) {
         await api(`/api/issues/${id}/approve`, { method: "POST" }); load();
       } else if (b.classList.contains("delete")) {
         if (!confirm("Delete this topic and its video file? (Doesn't remove it from Anthias or YouTube.)")) return;
-        await api(`/api/issues/${id}`, { method: "DELETE" }); card.remove(); emptyCheck();
+        await api(`/api/issues/${id}`, { method: "DELETE" }); picked.delete(+id); card.remove(); updateBulk(); emptyCheck();
       }
     } catch (err) { toast("⚠️ " + err.message, 6000); }
   });
   if (editable) updateRecommend(card);
 }
+
+// ---------- bulk selection ----------
+const BULK = {
+  pending: [{ value: "decline", label: "✕ Decline selected" }],
+  declined: [{ value: "review", label: "Move back to Review" }, { value: "delete", label: "Delete" }],
+  published: [{ value: "delete", label: "Delete" }, { value: "anthias", label: "Republish to Anthias" },
+              { value: "youtube", label: "Republish to YouTube" }],
+};
+
+function bulkBar(pos) {
+  const acts = BULK[view] || [];
+  const control = acts.length === 1
+    ? `<button type="button" class="bulk-go danger" data-action="${acts[0].value}" disabled>${acts[0].label}</button>`
+    : `<select class="bulk-action" aria-label="Bulk action"><option value="">Bulk action…</option>
+         ${acts.map(a => `<option value="${a.value}">${a.label}</option>`).join("")}</select>
+       <button type="button" class="bulk-go" disabled>Apply</button>`;
+  return `<div class="bulkbar ${pos}">
+    <button type="button" class="ghost pick-all">Select all</button>
+    <button type="button" class="ghost pick-none">Select none</button>
+    <span class="pick-count">0 selected</span><span class="spacer"></span>${control}</div>`;
+}
+
+function updateBulk() {
+  const n = picked.size;
+  $$(".pick-count").forEach(e => e.textContent = `${n} selected`);
+  $$(".bulkbar").forEach(bar => {
+    const sel = $(".bulk-action", bar);
+    $(".bulk-go", bar).disabled = !n || (sel && !sel.value);
+  });
+}
+
+function setPicked(id, on) {
+  on ? picked.add(id) : picked.delete(id);
+  const card = $(`#main .card[data-id="${id}"]`);
+  if (card) { card.classList.toggle("picked", on); $(".pick", card).checked = on; }
+}
+
+const CONFIRM = {
+  delete: n => `Delete ${n} topic(s) and their video files? This doesn't remove them from Anthias or YouTube.`,
+  anthias: n => `Send ${n} video(s) to Anthias again? Any that are already in the playlist will appear twice.`,
+  youtube: n => `Upload ${n} video(s) to YouTube again? Any that are already on YouTube will get a second copy.`,
+};
+const DONE = { decline: "Declined", review: "Moved back to Review", delete: "Deleted",
+               anthias: "Queued for Anthias", youtube: "Queued for YouTube" };
+
+$("#main").addEventListener("click", async e => {
+  const b = e.target.closest(".bulkbar button"); if (!b) return;
+  if (b.classList.contains("pick-all"))
+    $$("#main .card .pick:not(:disabled)").forEach(c => setPicked(+c.closest(".card").dataset.id, true));
+  else if (b.classList.contains("pick-none")) [...picked].forEach(id => setPicked(id, false));
+  else if (b.classList.contains("bulk-go")) {
+    const action = b.dataset.action || $(".bulk-action", b.closest(".bulkbar")).value;
+    const ids = [...picked], n = ids.length;
+    if (!action || !n) return;
+    if (CONFIRM[action] && !confirm(CONFIRM[action](n))) return;
+    $$(".bulk-go").forEach(x => x.disabled = true);
+    try {
+      const r = await api("/api/bulk", { method: "POST", body: { action, ids } });
+      r.done.forEach(id => picked.delete(id));
+      let msg = `${DONE[action]}: ${r.done.length} topic(s)`;
+      if (r.skipped.length) msg += ` · skipped ${r.skipped.length}: ` + r.skipped.map(s => `“${s.topic}” (${s.reason})`).join(", ");
+      toast(msg, r.skipped.length ? 9000 : 4000);
+    } catch (err) { toast("⚠️ " + err.message, 8000); }
+    load();
+    return;
+  }
+  updateBulk();
+});
+$("#main").addEventListener("change", e => {
+  if (e.target.classList.contains("pick")) setPicked(+e.target.closest(".card").dataset.id, e.target.checked);
+  else if (e.target.classList.contains("bulk-action"))     // keep the top and bottom dropdowns in step
+    $$(".bulk-action").forEach(s => s.value = e.target.value);
+  else return;
+  updateBulk();
+});
 
 function emptyCheck() {
   if (!$$("#main .card").length) $("#main").innerHTML = `<div class="empty">${view === "pending" ? "Nothing to review. Hit “Fetch news now” or wait for the morning run." : "Nothing here yet."}</div>`;
@@ -191,8 +270,12 @@ function emptyCheck() {
 async function load() {
   if (view === "settings") return loadSettings();
   const items = await api(`/api/issues?view=${view}`);
-  $("#main").innerHTML = items.map(issueHTML).join("");
+  const ids = new Set(items.map(i => i.id));
+  picked = new Set([...picked].filter(id => ids.has(id)));
+  $("#main").innerHTML = items.length
+    ? bulkBar("top") + items.map(issueHTML).join("") + bulkBar("bottom") : "";
   $$("#main .card").forEach(wire);
+  updateBulk();
   emptyCheck();
 }
 
@@ -357,6 +440,7 @@ async function ytStatus() {
 // ---------- top bar ----------
 $$("nav button").forEach(b => b.onclick = () => {
   $$("nav button").forEach(x => x.classList.toggle("active", x === b));
+  if (view !== b.dataset.view) picked.clear();
   view = b.dataset.view; load();
 });
 $("#fetchBtn").onclick = async () => {
@@ -377,7 +461,7 @@ setInterval(async () => {
   if (!s) return;
   if (wasFetching && !s.fetching && view === "pending") load();
   wasFetching = s.fetching;
-  if (view === "published" && $$(".badge.queued, .badge.rendering").length) load();
+  if (view === "published" && $$(".badge.queued, .badge.rendering, .badge.publishing").length) load();
 }, 5000);
 refreshStatus().then(s => { wasFetching = s?.fetching; });
 load();

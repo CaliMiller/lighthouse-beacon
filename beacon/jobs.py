@@ -64,8 +64,19 @@ def cleanup():
 
 # ---------- render / publish pipeline ----------
 def enqueue(issue_id):
+    """Render and publish everywhere (used by Approve)."""
     db.update_issue(issue_id, status="queued", log="")
-    _q.put(issue_id)
+    _q.put(("full", issue_id))
+
+
+TARGET_NAMES = {"anthias": "Anthias", "youtube": "YouTube"}
+
+
+def enqueue_republish(issue_id, target):
+    """Send an already-published topic to one destination again (bulk actions)."""
+    db.update_issue(issue_id, status="publishing")
+    db.append_log(issue_id, f"Queued: republish to {TARGET_NAMES[target]}")
+    _q.put((target, issue_id))
 
 
 def _slug(t):
@@ -91,22 +102,52 @@ def process(issue_id):
         db.append_log(issue_id, "Anthias: skipped — 'Send approved videos to Anthias' is off in Settings")
 
     if s.get("youtube_enabled") == "1":
-        try:
-            tags = list(dict.fromkeys(issue["yt_tags"] + [t.strip() for t in s.get("youtube_extra_tags", "").split(",") if t.strip()]))
-            desc = "\n\n".join(x for x in [
-                " / ".join(texts),
-                issue.get("summary", ""),
-                "Sources:\n" + "\n".join(issue["sources"]) if issue["sources"] else "",
-                s.get("youtube_description", ""),
-            ] if x)
-            vid = youtube.upload(s, out, issue["yt_title"] or texts[0], desc, tags)
-            db.update_issue(issue_id, youtube_id=vid)
-            db.append_log(issue_id, f"Uploaded to YouTube: https://youtu.be/{vid}")
-        except Exception as e:
+        if not send_to_youtube(issue_id, s, out, issue):
             problems.append("YouTube")
-            db.append_log(issue_id, f"YouTube upload failed: {e}")
 
     db.update_issue(issue_id, status="error" if problems else "done")
+
+
+def ensure_video(issue_id):
+    """Path to the topic's MP4, re-rendering it if it was cleaned up."""
+    issue = db.get_issue(issue_id)
+    if issue["video_path"] and os.path.isfile(issue["video_path"]):
+        return issue["video_path"]
+    s = db.get_settings()
+    font = render.find_font(s.get("font_path", ""))
+    out = os.path.join(db.VIDEO_DIR, f"{datetime.now():%Y%m%d}-{issue_id}-{_slug(issue['topic'])}.mp4")
+    n, per = render.render_video(render.card_texts(issue), issue["duration"], font, out)
+    db.update_issue(issue_id, video_path=out)
+    db.append_log(issue_id, f"Video file was gone, so it was rendered again ({n} card(s))")
+    return out
+
+
+def republish(issue_id, target):
+    s = db.get_settings()
+    issue = db.get_issue(issue_id)
+    path = ensure_video(issue_id)
+    send = send_to_anthias if target == "anthias" else send_to_youtube
+    ok = send(issue_id, s, path, issue)
+    db.update_issue(issue_id, status="done" if ok else "error")
+
+
+def send_to_youtube(issue_id, s, video_path, issue):
+    try:
+        texts = render.card_texts(issue)
+        tags = list(dict.fromkeys(issue["yt_tags"] + [t.strip() for t in s.get("youtube_extra_tags", "").split(",") if t.strip()]))
+        desc = "\n\n".join(x for x in [
+            " / ".join(texts),
+            issue.get("summary", ""),
+            "Sources:\n" + "\n".join(issue["sources"]) if issue["sources"] else "",
+            s.get("youtube_description", ""),
+        ] if x)
+        vid = youtube.upload(s, video_path, issue["yt_title"] or (texts[0] if texts else issue["topic"]), desc, tags)
+        db.update_issue(issue_id, youtube_id=vid)
+        db.append_log(issue_id, f"Uploaded to YouTube: https://youtu.be/{vid}")
+        return True
+    except Exception as e:
+        db.append_log(issue_id, f"YouTube upload failed: {e}")
+        return False
 
 
 def send_to_anthias(issue_id, s, video_path, issue):
@@ -123,9 +164,14 @@ def send_to_anthias(issue_id, s, video_path, issue):
 
 def _worker():
     while True:
-        iid = _q.get()
+        kind, iid = _q.get()
         try:
-            process(iid)
+            if not db.get_issue(iid):      # deleted while waiting in the queue
+                continue
+            if kind == "full":
+                process(iid)
+            else:
+                republish(iid, kind)
         except Exception as e:
             log.exception("pipeline failed for %s", iid)
             db.update_issue(iid, status="error")
@@ -141,3 +187,6 @@ def start():
     # resume anything interrupted by a restart
     for it in db.list_issues(["queued", "rendering"]):
         enqueue(it["id"])
+    for it in db.list_issues(["publishing"]):
+        db.update_issue(it["id"], status="error")
+        db.append_log(it["id"], "Republish was interrupted by a restart — run it again")

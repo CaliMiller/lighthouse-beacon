@@ -31,7 +31,14 @@ label { color: var(--muted); font-size: 13px; display: block; margin-bottom: 4px
 .card-head input.topic { font-weight: 700; font-size: 17px; background: transparent; border-color: transparent; padding-left: 0; }
 .card-head input.topic:focus { border-color: var(--border); padding-left: 10px; }
 .badge { font-size: 12px; padding: 2px 9px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--border); white-space: nowrap; }
-.badge.done { color: var(--good); } .badge.error { color: var(--bad); } .badge.rendering, .badge.queued { color: var(--warn); }
+.badge.done { color: var(--good); } .badge.error { color: var(--bad); } .badge.rendering, .badge.queued, .badge.publishing { color: var(--warn); }
+.card-head .pick { width: 20px; height: 20px; flex: none; accent-color: var(--accent); cursor: pointer; }
+.card.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.bulkbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 18px; }
+.bulkbar .spacer { flex: 1; }
+.bulkbar .pick-count { color: var(--muted); font-size: 13px; }
+.bulkbar select { width: auto; min-width: 210px; }
 .summary { color: var(--muted); margin: 6px 0 4px; font-size: 14px; }
 .sources a { color: var(--accent); font-size: 12px; margin-right: 10px; text-decoration: none; }
 .lines { margin: 14px 0; display: grid; gap: 8px; }

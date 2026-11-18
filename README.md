@@ -127,6 +127,13 @@ Small models handle that far more reliably than one huge request.
   - **📺 Send to Anthias** re-sends that video to Anthias only.
   - **↻ Re-run publish** renders again and re-uploads everywhere, YouTube included.
 - **+ My own message** makes a card from your own text, without the AI.
+- **Bulk actions.** Tick the box next to each topic's name, or use **Select all** / **Select none**
+  in the bar at the top or bottom of the list:
+  - **Review:** **Decline selected**.
+  - **Declined:** **Move back to Review** or **Delete**.
+  - **Published:** **Delete**, **Republish to Anthias** or **Republish to YouTube**. Republishing
+    sends a second copy if the video is already there, and re-renders the MP4 first if it's been
+    cleaned up. Delete removes the topic and its MP4 from Beacon only, not from Anthias or YouTube.
 
 ### Readability at 50 feet
 

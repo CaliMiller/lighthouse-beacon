@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Bulk actions. A checkbox on every topic, plus **Select all** / **Select none** bars at the top
+  and bottom of the Review, Declined and Published lists.
+  - Review: decline selected topics.
+  - Declined: move selected topics back to Review, or delete them.
+  - Published: delete, republish to Anthias only, or republish to YouTube only. If a video's MP4
+    was cleaned up after 30 days, it's rendered again first.
+
 ## v1.0.1 — 2026-11-17
 
 ### Changed

@@ -80,7 +80,7 @@ def manifest():
 
 
 # ---------- issues ----------
-VIEWS = {"pending": ["pending"], "published": ["queued", "rendering", "rendered", "done", "error"],
+VIEWS = {"pending": ["pending"], "published": ["queued", "rendering", "rendered", "publishing", "done", "error"],
          "declined": ["declined"]}
 
 
@@ -152,11 +152,7 @@ def restore(iid: int):
 
 @app.delete("/api/issues/{iid}")
 def delete(iid: int):
-    it = _get(iid)
-    with db.conn() as c:
-        c.execute("DELETE FROM issues WHERE id=?", (iid,))
-    if it["video_path"] and os.path.isfile(it["video_path"]):
-        os.remove(it["video_path"])
+    _delete_topic(_get(iid))
     return {"ok": True}
 
 
@@ -173,6 +169,49 @@ def resend_anthias(iid: int):
     if not ok:
         raise HTTPException(400, it["log"].strip().splitlines()[-1])
     return it
+
+
+BUSY = {"queued", "rendering", "publishing"}
+BULK_ALLOWED = {               # action -> statuses it applies to
+    "decline": {"pending"},
+    "review": {"declined"},
+    "delete": {"declined", "rendered", "done", "error"},
+    "anthias": {"rendered", "done", "error"},
+    "youtube": {"rendered", "done", "error"},
+}
+
+
+def _delete_topic(it):
+    with db.conn() as c:
+        c.execute("DELETE FROM issues WHERE id=?", (it["id"],))
+    if it["video_path"] and os.path.isfile(it["video_path"]):
+        os.remove(it["video_path"])
+
+
+@app.post("/api/bulk")
+def bulk(data: dict = Body(...)):
+    action = data.get("action")
+    if action not in BULK_ALLOWED:
+        raise HTTPException(400, f"Unknown bulk action: {action}")
+    done, skipped = [], []
+    for iid in dict.fromkeys(int(i) for i in data.get("ids", [])):
+        it = db.get_issue(iid)
+        if not it:
+            continue
+        if it["status"] not in BULK_ALLOWED[action]:
+            skipped.append({"id": iid, "topic": it["topic"],
+                            "reason": "still working on it" if it["status"] in BUSY else f"status is {it['status']}"})
+            continue
+        if action == "decline":
+            db.update_issue(iid, status="declined")
+        elif action == "review":
+            db.update_issue(iid, status="pending")
+        elif action == "delete":
+            _delete_topic(it)
+        else:
+            jobs.enqueue_republish(iid, action)
+        done.append(iid)
+    return {"action": action, "done": done, "skipped": skipped}
 
 
 @app.get("/api/issues/{iid}/video")
